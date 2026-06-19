@@ -278,12 +278,65 @@ a { color:inherit; }
   .story__detail-inner { grid-template-columns:1fr; padding-left:0; }
 }
 
-/* --- print ----------------------------------------------------------------- */
+/* --- print / PDF export ---------------------------------------------------- */
+
+/* floating "Save as PDF" action — screen only (hidden in print via data-noprint) */
+.printbtn {
+  position:fixed; right:22px; bottom:22px; z-index:70;
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.08em; font-weight:500;
+  padding:11px 16px; border:1px solid var(--green); background:var(--green); color:var(--bg);
+  cursor:pointer; box-shadow:0 6px 20px rgba(31,93,68,.28); transition:opacity .2s ease, transform .1s ease;
+}
+.printbtn:hover { opacity:.92; }
+.printbtn:active { transform:translateY(1px); }
+.printbtn__ico { font-size:13px; line-height:1; }
+@media (max-width:860px) { .printbtn { right:14px; bottom:14px; } }
+
 @media print {
+  /* preserve the designed colors — panels, hairlines, accents, dark footer */
+  *, *::before, *::after { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+
+  @page { margin:12mm; }
+  html, body { background:#fff; overflow:visible !important; }
+
   [data-noprint] { display:none !important; }
+
+  /* collapse interactive state into a clean, fully-rendered document */
   [data-reveal] { opacity:1 !important; transform:none !important; }
-  .rail { position:static; height:auto; }
+  [data-area]   { opacity:1 !important; }
+  [data-draw]   { stroke-dashoffset:0 !important; }
+  .story.is-dim { opacity:1 !important; filter:none !important; }
   .story__detail { max-height:none !important; opacity:1 !important; overflow:visible !important; }
+  .story__ind { display:none !important; } /* accordion toggle — meaningless on paper */
+
+  /* single column: the rail becomes a compact header above the content.
+     The print box (~726px) is below the 860px mobile breakpoint, so those
+     rules also apply here — re-show the contact block they hide. */
+  .shell { display:block; max-width:none; }
+  .rail {
+    position:static; max-height:none; overflow:visible;
+    border-right:none; border-bottom:1px solid var(--line);
+    padding:0 0 18px; margin-bottom:6px;
+  }
+  .rail__name { margin-top:8px; font-size:24px; }
+  .rail__contact { display:block !important; margin-top:14px; }
+
+  /* tighten the generous on-screen spacing for paper */
+  .section, .hero { padding:22px 0; }
+  .footer { padding:30px 26px; }
+  .statgrid, .bignums, .steps, .fitgrid { margin-top:20px; }
+  .history__label { margin:28px 0 8px; }
+
+  /* keep related blocks — and multi-line headings — from splitting across pages */
+  .stat, .bignum, .step, .fitcard, .hist-row, .story, .quote, .spark,
+  .story__detail-inner,
+  .hero__title, .section__heading, .stories__heading,
+  .step__title, .fitcard__title, .story__title, .hist-title,
+  .footer__name { break-inside:avoid; }
+  .kicker, h1, h2, h3, h4, .section__heading, .stories__heading,
+  .hero__title { break-after:avoid; }
+  .footer { break-inside:avoid; }
 }
 </style>
 </head>
@@ -802,6 +855,37 @@ a { color:inherit; }
       sec.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
+
+  // ---- print / PDF export ---------------------------------------------------
+  // Snap every animated value to its final state before the browser paints the
+  // print/PDF view, so the export never captures a mid-animation frame and any
+  // section the reader never scrolled to is fully rendered. The matching
+  // @media print rules handle layout, page breaks, and color preservation.
+  function finalizeForPrint() {
+    document.querySelectorAll("[data-reveal]").forEach(function (el) {
+      el.style.opacity = "1";
+      el.style.transform = "none";
+    });
+    document.querySelectorAll("[data-count]").forEach(function (n) {
+      var target = parseFloat(n.getAttribute("data-count")) || 0;
+      var dec = parseInt(n.getAttribute("data-dec") || "0", 10);
+      var pre = n.getAttribute("data-prefix") || "", suf = n.getAttribute("data-suffix") || "";
+      n.textContent = pre + target.toLocaleString("en-US", {
+        minimumFractionDigits: dec, maximumFractionDigits: dec
+      }) + suf;
+      n._done = true;
+    });
+  }
+  window.addEventListener("beforeprint", finalizeForPrint);
+
+  var printBtn = document.createElement("button");
+  printBtn.className = "printbtn";
+  printBtn.type = "button";
+  printBtn.setAttribute("data-noprint", "");
+  printBtn.setAttribute("aria-label", "Print or save this resume as a PDF");
+  printBtn.innerHTML = '<span class="printbtn__ico" aria-hidden="true">⤓</span> SAVE PDF';
+  printBtn.addEventListener("click", function () { finalizeForPrint(); window.print(); });
+  document.body.appendChild(printBtn);
 
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", onScroll, { passive: true });
